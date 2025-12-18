@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多人協作旅遊清單 - 記帳與預算</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for a clean, mobile-first design */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F0F8FF; /* Light blue-white for a subtle ocean/sand feel */
+        }
+        .tab-active {
+            border-bottom: 4px solid #06B6D4; /* Cyan 600 border for active tab (Okinawa Ocean) */
+            color: #1F2937; /* Dark text */
+            font-weight: 600;
+        }
+        .list-item-card {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            transition: background-color 0.2s;
+        }
+        
+        /* Interactive buttons */
+        .packed-btn { background-color: #059669; color: white; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.4); } /* Emerald 600 for Packed */
+        .unpack-btn { background-color: #FBBF24; color: #78350F; box-shadow: 0 2px 4px rgba(251, 191, 36, 0.4); } /* Yellow for Unpacked/Warning */
+        .luggage-tag { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 9999px; }
+
+        /* Budget Styles */
+        .fixed-budget-card { border-left: 5px solid #0E7490; } /* Deep Cyan 700 - Fixed Costs NT$ */
+        .expense-record-card { border-left: 3px solid #F97316; } /* Orange 600 for expense - Variable Costs JPY¥ */
+        .total-summary-card { background-color: #0891B2; } /* Cyan 700 - Stronger Blue */
+
+        /* Itinerary Flight Card */
+        .flight-card {
+            background-color: #ECFEFF; /* Cyan 50 - Very Light Blue */
+            border: 1px solid #67E8F9; /* Cyan 300 */
+        }
+        
+        /* User Selector */
+        #user-selector-container {
+            border-bottom: 1px solid #E5E7EB;
+        }
+        .user-tag {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .user-tag-active {
+            background-color: #06B6D4; /* Cyan 600 */
+            color: white;
+            box-shadow: 0 2px 4px rgba(6, 182, 212, 0.4);
+        }
+        
+        /* Tab Icons Style - UPDATED: Increased size and centered for icon-only display */
+        .tab-icon {
+            width: 1.75rem;
+            height: 1.75rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+<div class="max-w-md mx-auto bg-white min-h-screen">
+    
+    <!-- Loading/Status Indicator -->
+    <div id="loadingIndicator" class="p-4 text-center bg-yellow-100 text-yellow-800 font-semibold">
+        載入中... 正在建立連線...
+    </div>
+
+    <!-- UPDATED: User Selector for Packing List and Budget -->
+    <div id="user-selector-container" class="p-3 bg-white hidden">
+        <p class="text-sm font-semibold text-gray-600 mb-2">旅伴清單/記帳簿:</p>
+        <div id="userSelector" class="flex space-x-2 overflow-x-auto pb-2">
+            <!-- User tags will be inserted here -->
+        </div>
+    </div>
+
+
+    <!-- UPDATED: Header/Tab Navigation with Icons Only -->
+    <div class="flex justify-around border-b border-gray-200 p-3 bg-white">
+        <!-- Itinerary Tab: 行程細節 (Clipboard List Icon) -->
+        <div id="tabItinerary" class="text-center p-2 cursor-pointer tab-active flex flex-col items-center justify-center w-1/4" onclick="showTab('itinerary')">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>
+            </svg>
+        </div>
+        <!-- Map Tab: 地圖導航 (Map Pin Icon) -->
+        <div id="tabMap" class="text-center p-2 text-gray-500 hover:text-gray-700 cursor-pointer flex flex-col items-center justify-center w-1/4" onclick="showTab('map')">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+        </div>
+        <!-- Budget Tab: 花費預算 (Wallet Icon) -->
+        <div id="tabBudget" class="text-center p-2 text-gray-500 hover:text-gray-700 cursor-pointer flex flex-col items-center justify-center w-1/4" onclick="showTab('budget')">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2" ry="2"/>
+                <path d="M22 7.5H4"/>
+                <path d="M12 11h.01"/>
+                <path d="M17 11h.01"/>
+            </svg>
+        </div>
+        <!-- Packing Tab: 行李清單 (Briefcase Icon) -->
+        <div id="tabPacking" class="text-center p-2 text-gray-500 hover:text-gray-700 cursor-pointer flex flex-col items-center justify-center w-1/4" onclick="showTab('packing')">
+            <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="20" height="14" x="2" y="7" rx="2"/><path d="M14 2h-4a2 2 0 0 0-2 2v3h8V4a2 2 0 0 0-2-2Z"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="p-4">
+
+        <!-- Tab 1: 行程細節 (Default View) -->
+        <div id="itineraryDetailView" class="space-y-6">
+            <div id="itineraryDetailContent">
+                <p class="text-center text-gray-500 py-10">正在同步行程資料...</p>
+            </div>
+        </div>
+
+        <!-- Tab 2: 地圖導航 (NEW View) -->
+        <div id="mapView" class="space-y-6 hidden">
+            <p class="text-sm text-gray-600 mb-4 bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-400">
+                點擊地點旁的「導航」按鈕，即可在新視窗中開啟 Google 地圖進行搜尋。下方新增了地點景點特色供參考。
+            </p>
+            <div id="mapContent">
+                <p class="text-center text-gray-500 py-10">正在整理地點資訊...</p>
+            </div>
+        </div>
+        
+        <!-- Tab 3: 花費預算 (Expense Tracker) -->
+        <div id="budgetView" class="space-y-6 hidden">
+            <p id="budgetTravelerMessage" class="text-sm font-semibold mb-4 bg-purple-100 p-3 rounded-lg border-l-4 border-purple-400 text-purple-800">
+                您正在檢視的是 **個人** 固定費用與變動記帳。
+            </p>
+
+            <!-- Fixed Expenses Summary -->
+            <div id="fixedExpensesSummary"></div>
+
+            <!-- Expense Tracking Form -->
+            <div class="bg-white rounded-lg p-4 shadow-lg border border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-3 border-b pb-2">新增個人花費</h3>
+                <form id="expenseForm" onsubmit="addExpense(event)">
+                    <div class="mb-3">
+                        <label for="expenseDescription" class="block text-sm font-medium text-gray-700">項目描述 (必填)</label>
+                        <input type="text" id="expenseDescription" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-cyan-600 focus:border-cyan-600">
+                    </div>
+                    <div class="flex space-x-3 mb-3">
+                        <div class="flex-1">
+                            <label for="expenseAmount" class="block text-sm font-medium text-gray-700">金額 (JPY¥)</label>
+                            <input type="number" id="expenseAmount" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-cyan-600 focus:border-cyan-600">
+                        </div>
+                        <div class="flex-1">
+                            <label for="expenseCategory" class="block text-sm font-medium text-gray-700">類別</label>
+                            <select id="expenseCategory" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-white focus:ring-cyan-600 focus:border-cyan-600">
+                                <option value="餐飲與零食">餐飲與零食</option>
+                                <option value="購物與紀念品">購物與紀念品</option>
+                                <option value="交通與油費">交通與油費</option>
+                                <option value="景點與娛樂 (臨購)">景點與娛樂</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Payment Method Selection -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">付款方式</label>
+                        <div class="flex space-x-4">
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="radio" name="paymentMethod" value="現金" checked class="form-radio text-cyan-600 focus:ring-cyan-600 h-4 w-4">
+                                <span class="ml-2 text-gray-700">💵 現金</span>
+                            </label>
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="radio" name="paymentMethod" value="刷卡" class="form-radio text-cyan-600 focus:ring-cyan-600 h-4 w-4">
+                                <span class="ml-2 text-gray-700">💳 刷卡</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="addExpenseBtn" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 shadow-md">
+                        新增記帳
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Expense Tracking List -->
+            <div id="trackedExpensesList">
+                <!-- Records and total sum will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Tab 4: 行李清單 -->
+        <div id="packingListView" class="space-y-6 hidden">
+            <p id="packingListUserMessage" class="text-sm font-semibold mb-4 bg-yellow-100 p-3 rounded-lg border-l-4 border-yellow-400 text-yellow-800">
+                您正在檢視的是**個人**打包清單。請切換上方的標籤來檢視不同旅伴的清單。
+            </p>
+            <div id="packingListContent">
+                <p class="text-center text-gray-500 py-10">正在同步清單資料...</p>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Global Variables and Firebase Setup ---
+    setLogLevel('Debug');
+    
+    // MANDATORY Canvas Global Variables
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    let app;
+    let db;
+    let auth;
+    let userId = null;
+    let isAuthReady = false;
+    
+    // Use a fixed public ID for this shared itinerary across all users.
+    const SHARED_ITINERARY_ID = 'collaborative-trip-v4'; 
+    
+    // NEW: List of traveler names (Updated to 3 groups)
+    const TRAVELER_NAMES = ['柏言佩珊 (負責人)', '爸爸媽媽', '柏廷幼娜'];
+    let currentSelectedTraveler = TRAVELER_NAMES[0]; // Default to the first traveler
+    
+    let currentItineraryData = null; // Store the full data snapshot
+    let currentActiveTab = 'itinerary'; // Track the current active tab
+
+    // Firestore Path: /artifacts/{appId}/public/data/itineraries/{SHARED_ITINERARY_ID}
+    const getItineraryDocRef = () => {
+        if (!db) return null;
+        const path = `/artifacts/${appId}/public/data/itineraries/${SHARED_ITINERARY_ID}`;
+        return doc(db, path);
+    };
+
+    // --- 地圖和導航地點 (Locations are static) ---
+    const map_locations_data = [
+        { name: "飯店入住地點", location: "2-chōme-1-15 Kumoji 久茂地第一ビル ３階", type: "住宿", day: 1, description: "國際通周邊，交通便利，是四晚的住宿點。" },
+        // START UPDATED ORIX LOCATION
+        { name: "ORIX租車 (美栄橋站前取車)", location: "https://maps.app.goo.gl/J88aLvqwCAerdvFY6", type: "交通", day: 2, description: "ORIX 美栄橋站前外語櫃檯取車，位於那霸市中心，交通方便。記得檢查國際駕照和預約單。" },
+        // END UPDATED ORIX LOCATION
+        { name: "第一牧志公設市場", location: "第一牧志公設市場", type: "景點", day: 2, description: "沖繩廚房！可選購新鮮海產並代客料理，體驗在地美食文化。" },
+        { name: "豬肉蛋飯糰 (早餐)", location: "Pork Tamago Onigiri Makishi Market", type: "餐飲", day: 2, description: "必吃沖繩經典早餐，暖呼呼的飯糰搭配午餐肉和雞蛋。" },
+        { name: "瀨長島", location: "瀨長島", type: "景點", day: 2, description: "小島上的白色希臘風格聚落，有各種特色小店和無敵海景。" },
+        { name: "幸福鬆餅", location: "幸福鬆餅 瀨長島", type: "餐飲", day: 2, description: "超人氣排隊名店，以蓬鬆柔軟的舒芙蕾鬆餅聞名。" },
+        { name: "氾濫漢堡", location: "氾濫漢堡 瀨長島", type: "餐飲", day: 2, description: "份量十足、多汁美味的美式漢堡，適合大口享用。" },
+        { name: "炭火焼肉ぶち久茂地店 (晚餐)", location: "炭火焼肉ぶち久茂地店", type: "餐飲", day: 2, description: "已預訂的晚餐燒肉，主打高品質炭火燒肉，別忘了準時。" },
+        // DAY 2 新增地點
+        { name: "塔可飯咖啡", location: "https://maps.app.goo.gl/mKrYw7Z21zY1VxCM7", type: "餐飲", day: 2, description: "特色沖繩塔可飯，是當地的代表性平價美食。" },
+        { name: "吊床咖啡", location: "ハンモックカフェ ライスフィールド", type: "餐飲", day: 2, description: "在吊床上享受咖啡和輕食，是放鬆身心的特色咖啡廳。" },
+        { name: "海景餐廳", location: "https://maps.app.goo.gl/9JMuu19PftCCJfXN7", type: "餐飲", day: 2, description: "擁有絕佳海景視野的餐廳，適合邊用餐邊欣賞海景。" },
+        { name: "父親的鮪魚", location: "父親的鮪魚 沖繩", type: "餐飲", day: 2, description: "主打新鮮鮪魚料理，從生魚片到各種創意鮪魚餐點。" },
+
+        { name: "Lawson 時代大廈店", location: "Lawson 時代大廈店", type: "購物", day: 3, description: "便利商店採買，可買早餐和飲料，為北上路程作準備。" },
+        { name: "古宇利島", location: "古宇利島", type: "景點", day: 3, description: "有著清澈海水和白色沙灘，以古宇利大橋聞名的美麗海島。" },
+        { name: "蝦蝦飯 (午餐)", location: "蝦蝦飯 古宇利島", type: "餐飲", day: 3, description: "餐車販售的夏威夷風味蒜蓉蝦飯，排隊人氣美食。" },
+        { name: "しらさ食堂 海膽蓋飯", location: "https://maps.app.goo.gl/BbKDqGfKAExGjs1B8", type: "餐飲", day: 3, description: "以奢華海膽蓋飯和新鮮海味聞名的在地食堂。" },
+        { name: "沖繩美麗海水族館", location: "沖繩美麗海水族館", type: "景點", day: 3, description: "必訪景點！擁有巨大「黑潮之海」水槽和豐富的海洋生物展示。" },
+        { name: "MaxValu 牧志店 (超市)", location: "MaxValu 牧志店", type: "購物", day: 3, description: "當地大型超市，適合購買零食、飲料和即期生鮮。" },
+        
+        { name: "國際通 (採購)", location: "國際通 沖繩", type: "購物", day: 4, description: "那霸最熱鬧的商店街，是採購沖繩伴手禮的最終站。" },
+        { name: "沖縄そばタイラ製麺所 (午餐)", location: "沖縄そばタイラ製麺所 国際通り店", type: "餐飲", day: 4, description: "提供正宗沖繩麵，麵條Q彈，湯頭濃郁。" },
+        { name: "SAN-A浦添西海岸 PARCO CITY", location: "https://maps.app.goo.gl/3TaAuTahx5D9uFKu6", type: "購物", day: 4, description: "沖繩最大型的海景購物中心，擁有無敵海景與眾多品牌。" },
+        // START UPDATED ORIX LOCATION
+        { name: "ORIX租車 (美栄橋站前還車)", location: "https://maps.app.goo.gl/J88aLvqwCAerdvFY6", type: "交通", day: 4, description: "ORIX 美栄橋站前外語櫃檯還車，還車後可步行至車站，注意油箱是否加滿。" },
+        // END UPDATED ORIX LOCATION
+        // DAY 4 新增地點
+        { name: "大國藥妝 (國際通)", location: "https://maps.app.goo.gl/yhQFhZm11fcjGumh9", type: "購物", day: 4, description: "國際通上受歡迎的藥妝店，適合集中採購日用品和美妝。" },
+        { name: "札幌藥妝 (國際通)", location: "https://maps.app.goo.gl/if7F5LfQeSkrSoFg6", type: "購物", day: 4, description: "另一家大型藥妝店，可比價後採購。" },
+        { name: "唐吉訶德 (國際通)", location: "https://maps.app.goo.gl/8e5dtA7rYmAvkCyq9", type: "購物", day: 4, description: "24小時營業的綜合折扣商店，從食品到電器應有盡有。" },
+        { name: "Blue Seal (國際通)", location: "https://maps.app.goo.gl/pgZJJHvgg3wrAaT37", type: "餐飲", day: 4, description: "沖繩的在地冰淇淋品牌，口味選擇多樣，適合飯後甜點。" },
+        { name: "沖繩屋", location: "https://maps.app.goo.gl/LoTB6H6LPSC27PkW9", type: "購物", day: 4, description: "專門販售沖繩特色零食和伴手禮的店鋪。" },
+        { name: "御菓子御殿 國際通牧志店", location: "https://maps.app.goo.gl/9h4VYcwi6SoSVnHHA", type: "購物", day: 4, description: "購買紅薯蛋塔等經典沖繩糕點的最佳地點。" },
+    ];
+
+    // --- UPDATED: Fixed Budget Items (包含新的旅平險費用) ---
+    const FIXED_BUDGET_ITEMS = [
+        // 交通與住宿 (共用)
+        { name: "虎航來回機票", category: "交通與住宿", amount: 7500, description: "單人來回機票 NT$7,500", appliesTo: ['all'] },
+        { name: "五天四夜住宿", category: "交通與住宿", amount: 3608, description: "單人份住宿分攤費用總額", appliesTo: ['all'] }, 
+        { name: "自駕租車", category: "交通與住宿", amount: 1285, description: "租車費用（預估金額，以當日匯率計算）", appliesTo: ['all'] }, // <<< 費用已修正並增加備註
+        
+        // 採購與雜項
+        { name: "網卡費用", category: "採購與雜項", amount: 343, description: "沖繩五日網路費用", appliesTo: ['all'] },
+        // UPDATED: 成人旅平險 (柏言佩珊, 爸爸媽媽, 柏廷幼娜的成人)
+        { name: "旅遊平安險 (成人)", category: "採購與雜項", amount: 507, description: "單人份旅行平安險費用 (成人 NT$507/人)", appliesTo: ['柏言佩珊 (負責人)', '爸爸媽媽', '柏廷幼娜'] },
+        // NEW: 孩童旅平險 (柏廷幼娜的孩童)
+        { name: "旅遊平安險 (孩童)", category: "採購與雜項", amount: 313, description: "單人份旅行平安險費用 (孩童 NT$313/人)", appliesTo: ['柏廷幼娜'] },
+        
+        // 景點門票
+        { name: "水族館門票 (成人)", category: "景點與娛樂", amount: 370, description: "沖繩美麗海水族館單人成人票", appliesTo: ['all'] }, 
+        { name: "水族館門票 (兒童)", category: "景點與娛樂", amount: 144, description: "沖繩美麗海水族館單人兒童票", appliesTo: ['柏廷幼娜'] },
+        
+        // 高鐵票 (個別處理)
+        { name: "高鐵票 (台南→桃園)", category: "交通與住宿", amount: 1190, description: "台南到桃園單程高鐵票 (成人價)", appliesTo: ['柏言佩珊 (負責人)'] },
+        { name: "高鐵票 (嘉義→桃園) - 成人", category: "交通與住宿", amount: 920, description: "嘉義到桃園單程高鐵票 (成人價)", appliesTo: ['爸爸媽媽', '柏廷幼娜'] },
+        { name: "高鐵票 (嘉義→桃園) - 孩童", category: "交通與住宿", amount: 460, description: "嘉義到桃園單程高鐵票 (孩童價)", appliesTo: ['柏廷幼娜'] },
+    ];
+    
+    // Initial Data Structure for common packing items
+    const initialCommonPackingList = [
+        { name: "護照、入境表", category: "document", luggage: "隨身行李", packed: false, description: "旅行必備！" },
+        { name: "機票、台灣駕照、國際駕照", category: "document", luggage: "隨身行李", packed: false, description: "電子或紙本備份" },
+        { name: "外幣 / 信用卡", category: "document", luggage: "隨身行李", packed: false, description: "" },
+        
+        { name: "外套 / 保暖衣物", category: "clothing", luggage: "隨身行李 / 托運", packed: false, description: "應對早晚溫差" },
+        { name: "換洗衣物/貼身衣物 ", category: "clothing", luggage: "托運", packed: false, description: "" },
+        
+        { name: "盥洗用品 (100ml以上)", category: "hygiene", luggage: "托運", packed: false, description: "注意：液體容量限制" },
+        { name: "常備藥品 (感冒藥/胃藥)", category: "hygiene", luggage: "隨身行李", packed: false, description: "建議保留原包裝" },
+        
+        { name: "行動電源 (必隨身)", category: "electronics", luggage: "隨身行李", packed: false, description: "**必須**隨身攜帶，不可托運！" },
+    ];
+    
+    // --- 行程描述 (Itinerary details are static) ---
+    const initialItineraryData = {
+        itinerary_title: "沖繩五天四夜旅遊行程表",
+        
+        flights: {
+            outbound: {
+                airline: "tigersmart",
+                flight_number: "IT232",
+                departure: "TPE 桃園國際機場 ",
+                departure_time: "2025-12-21 18:20 PM",
+                arrival: "OKA 沖繩那霸機場",
+                arrival_time: "2025-12-21 20:40 PM"
+            },
+            return: {
+                airline: "tigersmart",
+                flight_number: "IT797",
+                departure: "OKA 沖繩那霸機場",
+                departure_time: "2025-12-25 13:30 PM",
+                arrival: "TNN 台南機場",
+                arrival_time: "2025-12-25 14:20 PM"
+            }
+        },
+
+        itinerary_details: [
+            { 
+                day: 1, 
+                date: "12/21 (日)", 
+                time_range: "18:20 PM - 晚間",
+                title: "晚班機抵達 / 飯店休息", 
+                description_items: [
+                    
+                    "航班 IT232 (18:20 PM) 抵達 OKA 沖繩那霸機場 (20:40 PM)。",
+                    "前往入住飯店：2-chōme-1-15 Kumoji 久茂地第一ビル ３階。"
+                ],
+                notes_items: [
+                    "晚餐：機場或飯店附近自理"
+                ]
+            },
+            { 
+                day: 2, 
+                date: "12/22 (一)", 
+                time_range: "08:30 - 20:00",
+                title: "海鮮市場與美國村", 
+                description_items: [
+                    // UPDATED
+                    "08:00 ORIX租車 (美栄橋站前外語櫃檯) 取車，準備出發。",
+                    "08:30 - 11:00 第一牧志公設市場 。",
+                    "11:40 - 13:00 瀨長島。",
+                    "13:40 - 15:30 美國村 。",
+                    "18:30 - 20:00 晚餐：炭火焼肉ぶち久茂地店 (已訂位 18:40)。"
+                ],
+                notes_items: [
+                    "早餐推薦：Pork Tamago Onigiri Makishi Market豬肉蛋吐司。",
+                    "前往美國村車程約35分鐘。",
+                    "瀨長島餐點可參考：幸福鬆餅、氾濫漢堡、父親的鮪魚等。"
+                ]
+            },
+            { 
+                day: 3, 
+                date: "12/23 (二)", 
+                time_range: "08:00 - 18:00",
+                title: "古宇利島與美麗海水族館", 
+                description_items: [
+                    "08:00 Lawson 時代大廈店便利商店採購。",
+                    "09:30 - 11:00 古宇利島 。",
+                    "11:30 - 15:30 沖繩美麗海水族館 (已訂票)。",
+                    "17:00 MaxValu 牧志店超市採購。",
+                    "18:00 返回飯店。"
+                ],
+                notes_items: [
+                    "去古宇利島車程約1.5小時。",
+                    "午餐推薦：蝦蝦飯 或 しらさ食堂 海膽蓋飯。",
+                    "水族館：海豚秀 (13:00)鯨鯊餵食秀 (15:00)。"
+                ]
+            },
+            { 
+                day: 4, 
+                date: "12/24 (三)", 
+                time_range: "09:30 - 17:30",
+                title: "伴手禮血拼 & PARCO CITY", 
+                description_items: [
+                    "09:30 - 11:30 國際通伴手禮採買 。",
+                    "11:30 - 13:00 國際通午餐。",
+                    "13:30 - 16:30 SAN-A浦添西海岸 PARCO CITY。",
+                    // UPDATED
+                    "17:30 前往 ORIX租車 (美栄橋站前外語櫃檯) 還車。"
+                ],
+                notes_items: [
+                    "晚餐：還車後自理。",
+                    "午餐推薦：沖縄そばタイラ製麺所。"
+                ]
+            },
+            { 
+                day: 5, 
+                date: "12/25 (四)", 
+                time_range: "早上",
+                title: "搭機回程", 
+                description_items: [
+                    "預留比平常更多時間前往機場。",
+                    "回程航班 IT797 (13:30 PM 起飛) 飛往 TNN 台南機場 (14:20 PM 抵達)。"
+                ],
+                notes_items: [
+                    "需在 11:00 左右抵達沖繩那霸機場 (OKA) 辦理手續。",
+                ]
+            },
+        ],
+        
+        // Packing list structured by traveler name (static)
+        packing_lists: {
+            '柏言佩珊 (負責人)': [
+                ...initialCommonPackingList,
+                { name: "DJI 相機 ", category: "electronics", luggage: "隨身行李", packed: false, description: "確認電池充飽。" },
+            ],
+            '爸爸媽媽': [
+                ...initialCommonPackingList,
+                { name: "頸枕 / 眼罩 / 耳塞", category: "hygiene", luggage: "隨身行李", packed: false, description: "機上及車上休息用" },
+            ],
+            '柏廷幼娜': [
+                ...initialCommonPackingList,
+                { name: "兒童醫藥包 (退燒藥、OK繃)", category: "hygiene", luggage: "隨身行李", packed: false, description: "兒童專用藥品" },
+            ]
+        },
+
+        // Budget Structure
+        fixed_items: FIXED_BUDGET_ITEMS, 
+        
+        expense_tracker: { // 每個旅伴的記帳紀錄
+            '柏言佩珊 (負責人)': [],
+            '爸爸媽媽': [],
+            '柏廷幼娜': []
+        },
+
+        map_locations: map_locations_data, 
+
+        lastUpdated: new Date().toISOString()
+    };
+
+    // --- Utility Functions ---
+
+    // Packing List Mapping
+    const packingCategoryMap = {
+        'document': '文件與金融', 'clothing': '衣物與配件', 'hygiene': '盥洗與藥品', 'electronics': '電子與雜項'
+    };
+    // UPDATED: Use more consistent colors
+    const packingCategoryColor = {
+        'document': 'text-cyan-700', 'clothing': 'text-purple-700', 'hygiene': 'text-teal-700', 'electronics': 'text-orange-700'
+    };
+    
+    // Budget Category Colors (Fixed and Variable)
+    const budgetCategoryColor = {
+        '交通與住宿': 'border-cyan-400 bg-cyan-50', // Fixed (Cyan)
+        '景點與娛樂': 'border-teal-400 bg-teal-50', // Fixed (Teal)
+        
+        // Variable Expenses (Orange/Yellow/Green)
+        '餐飲與零食': 'border-red-400 bg-red-50', 
+        '購物與紀念品': 'border-pink-400 bg-pink-50',
+        '交通與油費': 'border-yellow-400 bg-yellow-50',
+        '景點與娛樂 (臨購)': 'border-green-400 bg-green-50',
+        '採購與雜項': 'border-pink-400 bg-pink-50',
+        '其他': 'border-gray-400 bg-gray-50'
+    };
+
+
+    // Map Location Tag Colors
+    const locationTypeColor = {
+        '住宿': 'bg-red-100 text-red-800',
+        '交通': 'bg-cyan-100 text-cyan-800',
+        '景點': 'bg-emerald-100 text-emerald-800',
+        '餐飲': 'bg-yellow-100 text-yellow-800',
+        '購物': 'bg-blue-100 text-blue-800',
+    };
+
+    /**
+     * Copies the element's text content to the clipboard. (Disabled after ID block removal)
+     */
+    window.copyToClipboard = (elementId) => {
+        // Function no longer needed since ID block is removed, but kept as a stub if needed later.
+        console.log("Copy to clipboard functionality is disabled.");
+    }
+
+    /**
+     * Opens Google Maps search for the given query, adding "沖繩" for context, OR opens a direct link.
+     */
+    window.openMap = (query) => {
+        if (query.startsWith('http://') || query.startsWith('https://')) {
+            window.open(query, '_blank');
+        } else {
+            const fullQuery = encodeURIComponent(query + " 沖繩");
+            const url = `https://www.google.com/maps/search/?api=1&query=${fullQuery}`;
+            window.open(url, '_blank');
+        }
+    };
+    
+    /**
+     * Sets the active traveler for the packing list/budget view.
+     */
+    window.selectTraveler = (travelerName) => {
+        currentSelectedTraveler = travelerName;
+        renderUserSelector(); // Re-render selector to highlight active user
+        
+        if (currentActiveTab === 'packing') {
+            if (currentItineraryData) {
+                renderPackingList(currentItineraryData.packing_lists[currentSelectedTraveler] || []);
+            }
+        } else if (currentActiveTab === 'budget') {
+            if (currentItineraryData) {
+                renderBudget(currentItineraryData.fixed_items, currentItineraryData.expense_tracker[currentSelectedTraveler] || []);
+            }
+        } else {
+            showTab('packing');
+        }
+    }
+
+
+    /**
+     * Switches between the 'itinerary', 'packing', 'budget', and 'map' tabs.
+     */
+    window.showTab = (tabName) => {
+        currentActiveTab = tabName; // Update active tab tracker
+        
+        const views = {
+            itinerary: document.getElementById('itineraryDetailView'),
+            map: document.getElementById('mapView'),
+            packing: document.getElementById('packingListView'),
+            budget: document.getElementById('budgetView')
+        };
+        const tabs = {
+            itinerary: document.getElementById('tabItinerary'),
+            map: document.getElementById('tabMap'),
+            packing: document.getElementById('tabPacking'),
+            budget: document.getElementById('tabBudget')
+        };
+        
+        // Toggle the visibility of the user selector based on the tab
+        const userSelectorContainer = document.getElementById('user-selector-container');
+        if (tabName === 'packing' || tabName === 'budget') {
+            userSelectorContainer.classList.remove('hidden');
+            renderUserSelector();
+        } else {
+            userSelectorContainer.classList.add('hidden');
+        }
+
+        Object.values(views).forEach(v => v.classList.add('hidden'));
+        Object.values(tabs).forEach(t => t.classList.remove('tab-active', 'text-gray-900'));
+        Object.values(tabs).forEach(t => t.classList.add('text-gray-500'));
+
+
+        views[tabName].classList.remove('hidden');
+        tabs[tabName].classList.add('tab-active');
+        tabs[tabName].classList.remove('text-gray-500');
+        tabs[tabName].classList.add('text-gray-900');
+        
+        // When switching to map/budget/packing view, ensure the content is rendered
+        if (currentItineraryData) {
+            if (tabName === 'map') {
+                renderMapLocations(currentItineraryData.map_locations);
+            } else if (tabName === 'packing') {
+                renderPackingList(currentItineraryData.packing_lists[currentSelectedTraveler] || []);
+            } else if (tabName === 'budget') {
+                renderBudget(currentItineraryData.fixed_items, currentItineraryData.expense_tracker[currentSelectedTraveler] || []);
+            }
+        }
+    };
+
+
+    // --- Firestore Update Handlers (Packing List, Expense Tracker) ---
+
+    /**
+     * Toggles the 'packed' status of an item in the *current selected traveler's* packing list.
+     */
+    window.togglePacked = async (index) => {
+        if (!isAuthReady || !userId || !currentSelectedTraveler) {
+            console.error("Authentication not ready or traveler not selected. Cannot update item.");
+            return;
+        }
+        await updatePackingStatus(currentSelectedTraveler, index);
+    };
+
+    /**
+     * Updates the 'packed' status of an item for a specific traveler.
+     */
+    async function updatePackingStatus(travelerName, index) {
+        const docRef = getItineraryDocRef();
+        if (!docRef) return;
+
+        try {
+            const docSnapshot = await getDoc(docRef);
+            if (!docSnapshot.exists()) return;
+            
+            const data = docSnapshot.data();
+            const lists = data['packing_lists'];
+
+            if (lists && lists[travelerName] && lists[travelerName][index]) {
+                const list = lists[travelerName];
+                const newStatus = !list[index]['packed'];
+                list[index]['packed'] = newStatus;
+                
+                // Construct the dynamic field path for the update
+                const updatePayload = {
+                    [`packing_lists.${travelerName}`]: list,
+                    lastUpdated: new Date().toISOString()
+                };
+
+                await updateDoc(docRef, updatePayload);
+                console.log(`Packing list item for ${travelerName} at index ${index} toggled to ${newStatus}`);
+            }
+        } catch (error) {
+            console.error(`Error updating packing status:`, error);
+        }
+    }
+    
+    /**
+     * 1. 新增記帳項目
+     */
+    window.addExpense = async (event) => {
+        event.preventDefault();
+        
+        if (!isAuthReady || !userId || !currentSelectedTraveler) {
+            console.error("Authentication not ready or traveler not selected. Cannot add expense.");
+            return;
+        }
+
+        const descriptionInput = document.getElementById('expenseDescription');
+        const amountInput = document.getElementById('expenseAmount');
+        const categoryInput = document.getElementById('expenseCategory');
+        // NEW: Get payment method
+        const paymentMethodInput = document.querySelector('input[name="paymentMethod"]:checked');
+        const addBtn = document.getElementById('addExpenseBtn');
+
+        const description = descriptionInput.value.trim();
+        // The amount is always stored as an integer, regardless of the display currency (JPY in this case)
+        const amount = parseInt(amountInput.value, 10);
+        const category = categoryInput.value;
+        const paymentMethod = paymentMethodInput ? paymentMethodInput.value : '現金'; // Default to Cash
+        
+        if (description === '' || isNaN(amount) || amount <= 0) {
+            console.error("Invalid expense input.");
+            return;
+        }
+        
+        addBtn.disabled = true;
+        addBtn.textContent = '儲存中...';
+
+        const docRef = getItineraryDocRef();
+        if (!docRef) {
+             addBtn.disabled = false;
+             addBtn.textContent = '新增記帳';
+             return;
+        }
+
+        try {
+            const docSnapshot = await getDoc(docRef);
+            if (!docSnapshot.exists()) return;
+            
+            const data = docSnapshot.data();
+            const tracker = data['expense_tracker'] || {};
+            const travelerList = tracker[currentSelectedTraveler] || [];
+            
+            const newExpense = {
+                id: Date.now().toString(), // Use timestamp for unique ID (better than index for deletion)
+                name: description,
+                amount: amount,
+                category: category,
+                paymentMethod: paymentMethod, // Store payment method
+                date: new Date().toISOString().substring(0, 10) // YYYY-MM-DD
+            };
+            
+            travelerList.push(newExpense);
+            
+            // Construct the dynamic field path for the update
+            const updatePayload = {
+                [`expense_tracker.${currentSelectedTraveler}`]: travelerList,
+                lastUpdated: new Date().toISOString()
+            };
+
+            await updateDoc(docRef, updatePayload);
+            console.log(`Expense added for ${currentSelectedTraveler}`);
+            
+            // Reset form
+            descriptionInput.value = '';
+            amountInput.value = '';
+            // Reset radio to default (Cash)
+            document.querySelector('input[name="paymentMethod"][value="現金"]').checked = true;
+
+        } catch (error) {
+            console.error(`Error adding expense:`, error);
+        } finally {
+            addBtn.disabled = false;
+            addBtn.textContent = '新增記帳';
+        }
+    }
+    
+    /**
+     * 2. 刪除記帳項目
+     */
+    window.deleteExpense = async (expenseId) => {
+        if (!isAuthReady || !userId || !currentSelectedTraveler) {
+            console.error("Authentication not ready or traveler not selected. Cannot delete expense.");
+            return;
+        }
+
+        const docRef = getItineraryDocRef();
+        if (!docRef) return;
+        
+        try {
+            const docSnapshot = await getDoc(docRef);
+            if (!docSnapshot.exists()) return;
+            
+            const data = docSnapshot.data();
+            const tracker = data['expense_tracker'] || {};
+            const travelerList = tracker[currentSelectedTraveler] || [];
+            
+            const updatedList = travelerList.filter(item => item.id !== expenseId);
+            
+            // Construct the dynamic field path for the update
+            const updatePayload = {
+                [`expense_tracker.${currentSelectedTraveler}`]: updatedList,
+                lastUpdated: new Date().toISOString()
+            };
+
+            await updateDoc(docRef, updatePayload);
+            console.log(`Expense with ID ${expenseId} deleted for ${currentSelectedTraveler}`);
+            
+        } catch (error) {
+            console.error(`Error deleting expense:`, error);
+        }
+    }
+
+
+    // --- Rendering Functions ---
+    
+    /**
+     * Renders the user selector tags.
+     */
+    function renderUserSelector() {
+        const selectorDiv = document.getElementById('userSelector');
+        let html = '';
+        
+        TRAVELER_NAMES.forEach(name => {
+            const isActive = name === currentSelectedTraveler;
+            const activeClass = isActive ? 'user-tag-active' : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
+            // UPDATED: Use simple text icon
+            const icon = name.includes('(負責人)') ? '負責人' : '旅伴';
+            
+            // Only display the name part without '(負責人)' in the button
+            const displayName = name.replace(' (負責人)', '');
+
+            html += `
+                <span 
+                    class="user-tag text-sm font-semibold py-2 px-4 rounded-full flex-shrink-0 ${activeClass}" 
+                    onclick="selectTraveler('${name.replace(/'/g, "\\'")}')"
+                >
+                    ${icon} ${displayName}
+                </span>
+            `;
+        });
+        selectorDiv.innerHTML = html;
+        
+        // Update the message for the current active tab
+        if (currentActiveTab === 'packing') {
+            document.getElementById('packingListUserMessage').innerHTML = `
+                您正在檢視的是 **${currentSelectedTraveler.replace(' (負責人)', '')}** 的個人打包清單。
+            `;
+        } else if (currentActiveTab === 'budget') {
+            document.getElementById('budgetTravelerMessage').innerHTML = `
+                <p class="text-sm font-semibold mb-4 bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-400 text-cyan-800">
+                    您正在檢視的是 **${currentSelectedTraveler.replace(' (負責人)', '')}** 的固定費用與變動記帳。
+                </p>
+            `;
+        }
+    }
+    
+    /**
+     * Renders a single flight segment (outbound or return).
+     */
+    function renderFlightSegment(segment, type) {
+        // UPDATED: Use text instead of emoji
+        const icon = type === 'outbound' ? '出發' : '抵達';
+        const direction = type === 'outbound' ? '去程' : '回程';
+        const bgClass = type === 'outbound' ? 'bg-cyan-100 border-cyan-300' : 'bg-teal-100 border-teal-300';
+        
+        return `
+            <div class="flight-card rounded-lg p-3 mb-2 ${bgClass}">
+                <div class="flex items-center justify-between mb-2 border-b border-dashed pb-1">
+                    <span class="text-sm font-bold text-gray-700">${icon} ${direction} (${segment.airline})</span>
+                    <span class="text-xs font-semibold text-gray-600">航班號碼: ${segment.flight_number}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <div>
+                        <p class="font-bold text-gray-800">${segment.departure}</p>
+                        <p class="text-xs text-gray-500 whitespace-nowrap">${segment.departure_time}</p>
+                    </div>
+                    <div class="text-center text-gray-600 self-center">
+                        <span class="font-bold">→</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-gray-800">${segment.arrival}</p>
+                        <p class="text-xs text-gray-500 whitespace-nowrap">${segment.arrival_time}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Renders array of strings into a bulleted list.
+     */
+    function renderListItems(items) {
+        if (!items || items.length === 0) return '';
+        const listItems = items.map(item => `<li class="mb-1">${item}</li>`).join('');
+        return `<ul class="list-disc pl-5 text-sm space-y-1">${listItems}</ul>`;
+    }
+
+    /**
+     * Renders the itinerary details from the provided data.
+     */
+    function renderItineraryDetails(details, flights) {
+        const contentDiv = document.getElementById('itineraryDetailContent');
+        if (!details || details.length === 0) {
+            contentDiv.innerHTML = '<p class="text-center text-gray-500 py-10">行程細節為空。</p>';
+            return;
+        }
+
+        let html = '';
+        
+        // 1. Render Flight Summary
+        if (flights) {
+            // UPDATED: Use text instead of emoji
+            html += `<h2 class="text-xl font-bold text-cyan-700 mb-3">航班資訊總覽</h2>`;
+            html += renderFlightSegment(flights.outbound, 'outbound');
+            html += renderFlightSegment(flights.return, 'return');
+            html += `<h2 class="text-xl font-bold text-cyan-700 mt-6 mb-3">每日詳細行程</h2>`;
+        }
+
+        // 2. Render Daily Details
+        details.forEach(detail => {
+            const notesIcon = '備註:'; // UPDATED: Use text instead of emoji
+            html += `
+                <div class="itinerary-card bg-cyan-50 rounded-xl p-4 flex items-center mt-4 border border-cyan-200">
+                    <!-- Day Marker -->
+                    <div class="flex flex-col items-center mr-4 flex-shrink-0 w-16">
+                        <div class="text-3xl font-extrabold text-cyan-600 leading-none whitespace-nowrap">Day ${detail.day}</div>
+                        <div class="text-xs text-gray-600 whitespace-nowrap">${detail.date}</div>
+                    </div>
+                    <!-- Details -->
+                    <div class="flex-grow min-w-0">
+                        <!-- Time Range -->
+                        <div class="text-sm font-semibold text-gray-800 mb-2 border-b border-cyan-200 pb-1">
+                             <span class="text-cyan-600 font-bold">時段:</span> <span class="whitespace-nowrap">${detail.time_range}</span>
+                        </div>
+                        
+                        <div class="text-lg font-bold text-gray-900 leading-snug mb-2">
+                            ${detail.title}
+                        </div>
+                        
+                        <!-- Description as Bulleted List -->
+                        <div class="text-sm text-gray-700 mt-2 border-l-2 border-amber-500 pl-2">
+                            ${renderListItems(detail.description_items)}
+                        </div>
+                        
+                        <!-- Notes as Bulleted List -->
+                        ${detail.notes_items && detail.notes_items.length > 0 ? `
+                            <div class="text-xs text-amber-700 bg-amber-100 p-2 rounded mt-3">
+                                <p class="font-bold mb-1">${notesIcon}</p>
+                                ${renderListItems(detail.notes_items)}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += `<div class="text-center pt-4 pb-10 text-gray-500 text-sm">--- 行程結束 ---</div>`;
+        contentDiv.innerHTML = html;
+        document.getElementById('loadingIndicator').classList.add('hidden');
+    }
+
+    /**
+     * Renders the dedicated Map Navigation list.
+     */
+    function renderMapLocations(locations) {
+        const contentDiv = document.getElementById('mapContent');
+        if (!locations || locations.length === 0) {
+            contentDiv.innerHTML = '<p class="text-center text-gray-500 py-10">地圖地點清單為空。</p>';
+            return;
+        }
+
+        const groupedLocations = locations.reduce((acc, item) => {
+            const day = item.day;
+            if (!acc[day]) acc[day] = [];
+            acc[day].push(item);
+            return acc;
+        }, {});
+
+        let html = '';
+        
+        for (const day in groupedLocations) {
+            html += `
+                <div class="space-y-3 mb-8">
+                    <h2 class="text-2xl font-extrabold text-cyan-600 border-b-2 border-cyan-400 pb-2">
+                        Day ${day}
+                    </h2>
+            `;
+            
+            groupedLocations[day].forEach(item => {
+                const tagClass = locationTypeColor[item.type] || 'bg-gray-100 text-gray-700';
+                const mapQuery = item.location.replace(/'/g, "\\'");
+                
+                const displayLocation = (item.location.startsWith('http') || item.location.startsWith('https')) 
+                                        ? '點擊導航開啟連結' 
+                                        : item.location;
+
+                html += `
+                    <div class="list-item-card bg-white rounded-lg p-4 flex items-center justify-between border-l-4 border-cyan-200">
+                        <div class="flex-grow min-w-0 pr-2">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-sm font-bold text-gray-900 truncate">${item.name}</span>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${tagClass} flex-shrink-0">${item.type}</span>
+                            </div>
+                            <div class="text-sm text-gray-700 italic mt-1 leading-snug">${item.description || '無特色說明。'}</div> 
+                            <div class="text-xs text-gray-400 mt-1 truncate">地點代碼/連結：${displayLocation}</div>
+                        </div>
+                        <button onclick="openMap('${mapQuery}')" class="flex items-center text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-full shadow-md transition duration-150 flex-shrink-0 ml-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
+                                <path d="M10.865 3.027a2.5 2.5 0 0 0-3.73 0l-5.188 7.643A4.5 4.5 0 0 0 5.485 18.5h9.03a4.5 4.5 0 0 0 3.553-7.83L10.865 3.027ZM13 14a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-.5-5.967a.999.999 0 0 1 1.996 0A7.545 7.545 0 0 0 10 12.5a.75.75 0 0 1 1.5 0 9.045 9.045 0 0 1-3.04-5.467Z" />
+                            </svg>
+                            導航
+                        </button>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+        }
+
+        contentDiv.innerHTML = html;
+    }
+
+    /**
+     * Helper: Calculates the fixed budget for a specific traveler based on the FIXED_BUDGET_ITEMS rules.
+     */
+    function getTravelerFixedExpenses(travelerName, fixedItems) {
+        // Filter items applicable to this traveler (using appliesTo array)
+        const applicableItems = fixedItems.filter(item => 
+            item.appliesTo.includes('all') || item.appliesTo.includes(travelerName)
+        );
+        
+        const groupedFixed = applicableItems.reduce((acc, item) => {
+            const category = item.category;
+            if (!acc[category]) acc[category] = [];
+            
+            let calculatedAmount = item.amount;
+            let multiplier = 1; // Start with 1
+            const itemName = item.name;
+
+            // --- UPDATED CUSTOM MULTIPLIER LOGIC based on user request ---
+            
+            if (travelerName === '柏言佩珊 (負責人)' || travelerName === '爸爸媽媽') {
+                // Rule 1: All costs are multiplied by 2 for these two groups.
+                multiplier = 2;
+            } else if (travelerName === '柏廷幼娜') {
+                // Rule 2: 柏廷幼娜 is a mixed case.
+                if (itemName === '虎航來回機票') {
+                    // Rule 2a: 機票 is 2 person-portions (x2)
+                    multiplier = 2;
+                } else {
+                    // Rule 2b: Other items are 1 person-portion (x1) - default 1 holds true
+                    multiplier = 1; 
+                }
+            }
+            // --- END UPDATED CUSTOM MULTIPLIER LOGIC ---
+
+            calculatedAmount *= multiplier;
+
+            acc[category].push({ 
+                ...item, 
+                amount: calculatedAmount, // Overwrite amount with the calculated value
+                originalAmount: item.amount, // Keep original unit amount
+                multiplier: multiplier
+            });
+            return acc;
+        }, {});
+        
+        return groupedFixed;
+    }
+
+    /**
+     * Renders the UPDATED Budget View (Fixed Summary + Tracked Expenses List).
+     */
+    function renderBudget(fixedItems, trackedExpenses) {
+        const fixedDiv = document.getElementById('fixedExpensesSummary');
+        const trackedDiv = document.getElementById('trackedExpensesList');
+        
+        if (!currentSelectedTraveler || !fixedItems || !trackedExpenses) return;
+
+        // --- 1. Render Fixed Expenses Summary (Currency: NT$) ---
+        const groupedFixed = getTravelerFixedExpenses(currentSelectedTraveler, fixedItems);
+        let fixedHtml = '';
+        let totalFixedBudgeted = 0;
+
+        fixedHtml += `<h2 class="text-xl font-bold text-cyan-700 mt-2 mb-4">${currentSelectedTraveler.replace(' (負責人)', '')} 已預付項目 - NT$</h2>`;
+
+        for (const [categoryKey, items] of Object.entries(groupedFixed)) {
+            const titleColor = budgetCategoryColor[categoryKey] || 'border-gray-400 bg-gray-50';
+
+            fixedHtml += `
+                <div class="space-y-2 mb-4">
+                    <h3 class="text-base font-semibold text-gray-700 border-b border-gray-300 pb-1">
+                        ${categoryKey}
+                    </h3>
+            `;
+
+            items.forEach(item => {
+                totalFixedBudgeted += item.amount;
+                
+                // Only show multiplier info if it is greater than 1
+                const multiplierInfo = item.multiplier > 1 ? 
+                    `<div class="text-xs text-orange-500 font-medium">NT$${item.originalAmount.toLocaleString()} x ${item.multiplier} 份 (兩人)</div>` : '';
+                
+                fixedHtml += `
+                    <div class="fixed-budget-card bg-white rounded-lg p-3 flex items-center justify-between border-l-4 border-cyan-700">
+                        <div class="flex-grow">
+                            <div class="text-sm font-semibold text-gray-900 leading-snug">${item.name}</div>
+                            <div class="text-xs text-gray-500">${item.description}</div>
+                            ${multiplierInfo}
+                        </div>
+                        <div class="flex-shrink-0 ml-4 text-right">
+                            <div class="text-base font-extrabold text-cyan-700 whitespace-nowrap">
+                                NT$ ${item.amount.toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            fixedHtml += `</div>`;
+        }
+
+        // Fixed Summary Card (Removed emoji)
+        const fixedSummaryHtml = `
+            <div class="total-summary-card bg-cyan-700 text-white rounded-xl p-4 mb-6 shadow-xl">
+                <div class="text-sm font-semibold mb-1"> ${currentSelectedTraveler.replace(' (負責人)', '')} 固定預付總額 </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xl font-bold">總計:</span>
+                    <span class="text-2xl font-extrabold text-yellow-300">NT$ ${totalFixedBudgeted.toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+        fixedDiv.innerHTML = fixedSummaryHtml + fixedHtml;
+
+
+        // --- 2. Render Tracked Expenses List (Currency: JPY¥) ---
+        let trackedHtml = '';
+        let totalTrackedExpense = 0;
+
+        // UPDATED: Use text instead of emoji
+        trackedHtml += `<h2 class="text-xl font-bold text-orange-600 mt-6 mb-4 border-t pt-4"> ${currentSelectedTraveler.replace(' (負責人)', '')} 變動花費記帳 (JPY¥)</h2>`;
+        
+        if (trackedExpenses.length === 0) {
+            trackedHtml += '<p class="text-center text-gray-500 py-6 bg-gray-100 rounded-lg">尚無變動花費紀錄。</p>';
+        } else {
+            // Sort by latest (newest first)
+            const sortedExpenses = [...trackedExpenses].sort((a, b) => b.id - a.id);
+            
+            sortedExpenses.forEach(item => {
+                totalTrackedExpense += item.amount;
+                const categoryClass = budgetCategoryColor[item.category] || 'border-gray-400 bg-gray-50';
+                
+                // NEW: Payment Method Badge Logic
+                const paymentMethod = item.paymentMethod || '現金'; // Backward compatibility
+                const paymentBadgeClass = paymentMethod === '刷卡' 
+                    ? 'text-blue-600 bg-blue-50 border-blue-200' 
+                    : 'text-green-600 bg-green-50 border-green-200';
+                const paymentIcon = paymentMethod === '刷卡' ? '💳' : '💵';
+
+                trackedHtml += `
+                    <div class="expense-record-card bg-white rounded-lg p-3 flex items-center justify-between border-l-4 border-orange-600">
+                        <div class="flex-grow min-w-0 pr-2">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-base font-semibold text-gray-900 truncate">${item.name}</span>
+                                <button onclick="deleteExpense('${item.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium ml-2 flex-shrink-0">
+                                    刪除
+                                </button>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 mt-1">
+                                <span class="px-2 py-0.5 rounded text-xs font-medium border ${categoryClass.replace('border-', 'text-').replace('bg-', 'bg-')} flex-shrink-0">${item.category}</span>
+                                <span class="px-2 py-0.5 rounded text-xs font-medium border ${paymentBadgeClass} flex-shrink-0">${paymentIcon} ${paymentMethod}</span>
+                                <span class="text-xs text-gray-400 flex-shrink-0">${item.date.substring(5)}</span>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 ml-4 text-right">
+                            <div class="text-lg font-extrabold text-orange-600 whitespace-nowrap">
+                                ¥${item.amount.toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Total Tracked Summary (Removed emoji)
+            trackedHtml = `
+                <div class="total-summary-card bg-orange-600 text-white rounded-xl p-4 mb-4 shadow-xl">
+                    <div class="text-sm font-semibold mb-1"> ${currentSelectedTraveler.replace(' (負責人)', '')} 變動記帳總額 (購物/餐飲等 - JPY¥)</div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xl font-bold">總計:</span>
+                        <span class="text-2xl font-extrabold text-yellow-300">JPY¥ ${totalTrackedExpense.toLocaleString()}</span>
+                    </div>
+                </div>
+            ` + trackedHtml;
+        }
+
+        trackedDiv.innerHTML = trackedHtml;
+    }
+
+    /**
+     * Renders the packing list for the currently selected traveler.
+     */
+    function renderPackingList(list) {
+        const contentDiv = document.getElementById('packingListContent');
+        if (!list || list.length === 0) {
+            contentDiv.innerHTML = '<p class="text-center text-gray-500 py-10">清單為空。請手動新增項目。</p>';
+            return;
+        }
+
+        // Group by category for cleaner display
+        const groupedList = list.reduce((acc, item, index) => {
+            const category = item.category;
+            if (!acc[category]) acc[category] = [];
+            acc[category].push({ ...item, index }); 
+            return acc;
+        }, {});
+
+        let html = '';
+        for (const [categoryKey, items] of Object.entries(groupedList)) {
+            const categoryTitle = packingCategoryMap[categoryKey] || categoryKey;
+            const titleColor = packingCategoryColor[categoryKey] || 'text-gray-700';
+
+            html += `
+                <div class="space-y-3 mb-6">
+                    <h2 class="text-xl font-bold ${titleColor} border-b-2 border-cyan-200 pb-1 mb-3">
+                        ${categoryTitle}
+                    </h2>
+            `;
+
+            items.forEach(item => {
+                const isPacked = item.packed;
+                // Custom styles defined at the top
+                const buttonClass = isPacked ? 'packed-btn' : 'unpack-btn';
+                const buttonText = isPacked ? '已打包 ✓' : '未打包';
+                const cardBg = isPacked ? 'bg-teal-100' : 'bg-white';
+                const descriptionClass = item.description.includes('必須') ? 'text-red-600 font-bold' : 'text-gray-500';
+
+                html += `
+                    <div class="list-item-card ${cardBg} rounded-lg p-4 flex items-center justify-between" data-index="${item.index}">
+                        <div>
+                            <div class="text-base font-semibold text-gray-900 leading-snug">
+                                ${item.name}
+                            </div>
+                            ${item.description ? `<div class="text-sm ${descriptionClass} mt-1">${item.description}</div>` : ''}
+                            <div class="space-x-2 mt-1">
+                                <span class="luggage-tag ${item.luggage.includes('隨身') ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'} font-medium">${item.luggage}</span>
+                            </div>
+                        </div>
+                        <button onclick="togglePacked(${item.index})" class="px-4 py-2 rounded-full text-sm font-bold transition duration-150 ${buttonClass}">
+                            ${buttonText}
+                        </button>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+        contentDiv.innerHTML = html;
+    }
+
+
+    // --- Initialization ---
+    
+    /**
+     * Attempts a sign-in function with exponential backoff for transient errors.
+     * @param {Function} signInFunction - The function to execute (e.g., signInWithCustomToken or signInAnonymously).
+     * @param {number} [maxRetries=5] - Maximum number of retries.
+     */
+    async function attemptSignIn(signInFunction, maxRetries = 5) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                // The sign-in function
+                const userCredential = await signInFunction();
+                console.log(`Sign-in successful on attempt ${i + 1}`);
+                return userCredential;
+            } catch (error) {
+                // Only retry on specific network/transient errors
+                if (error.code === 'auth/network-request-failed' && i < maxRetries - 1) {
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 500;
+                    console.warn(`Sign-in failed with network error. Retrying in ${delay / 1000}s... (Attempt ${i + 1}/${maxRetries})`);
+                    document.getElementById('loadingIndicator').textContent = `連線錯誤，正在重試 (${i + 1}/${maxRetries})...`;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } else {
+                    // Re-throw other errors or the last attempt's error
+                    throw error;
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Initializes Firebase and sets up authentication.
+     */
+    async function initFirebase() {
+        if (!firebaseConfig) {
+            console.error("Firebase config is missing.");
+            document.getElementById('loadingIndicator').textContent = '錯誤：Firebase 設定遺失。';
+            return;
+        }
+        
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        // Authentication Process (now uses retry logic)
+        try {
+            if (initialAuthToken) {
+                console.log("Attempting sign-in with custom token...");
+                await attemptSignIn(() => signInWithCustomToken(auth, initialAuthToken));
+            } else {
+                console.log("Attempting anonymous sign-in...");
+                await attemptSignIn(() => signInAnonymously(auth));
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    isAuthReady = true;
+                    console.log("Authentication successful. User ID:", userId);
+                    setupRealtimeListener();
+                } else {
+                    console.log("User is signed out or auth is still processing.");
+                }
+            });
+
+        } catch (error) {
+            console.error("Firebase Auth Error:", error);
+            // Display a persistent error message if all retries fail
+            document.getElementById('loadingIndicator').textContent = `連線錯誤：認證失敗。請檢查網路或稍後再試 (${error.message})`;
+        }
+    }
+
+    /**
+     * Sets up the real-time listener for the itinerary document.
+     */
+    function setupRealtimeListener() {
+        if (!isAuthReady || !db) return;
+
+        const docRef = getItineraryDocRef();
+
+        // 1. Check if the document exists (getDoc) and create if not
+        getDoc(docRef).then(docSnap => {
+            if (!docSnap.exists() || !docSnap.data().fixed_items) { // Check for new fixed_items structure
+                console.log("Itinerary document not found or structure outdated, creating initial data...");
+                // Use the new initial data structure
+                return setDoc(docRef, initialItineraryData);
+            }
+        }).then(() => {
+            // 2. Set up the real-time listener (onSnapshot)
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    currentItineraryData = data; // Store the latest data
+
+                    console.log("Received Real-time Data Update:", data);
+                    
+                    // Render all sections
+                    renderItineraryDetails(data.itinerary_details || [], data.flights);
+                    renderMapLocations(data.map_locations);
+                    
+                    // NEW: Render the user selector and content based on current active tab
+                    renderUserSelector();
+                    
+                    if (currentActiveTab === 'budget') {
+                         renderBudget(data.fixed_items || [], data.expense_tracker[currentSelectedTraveler] || []);
+                    } else if (currentActiveTab === 'packing') {
+                         const activeTravelerList = data.packing_lists[currentSelectedTraveler] || data.packing_lists[TRAVELER_NAMES[0]] || [];
+                         renderPackingList(activeTravelerList);
+                    }
+
+                } else {
+                    console.log("Itinerary document not found for listener.");
+                }
+            }, (error) => {
+                console.error("Firestore Listener Error:", error);
+                document.getElementById('loadingIndicator').textContent = '資料同步錯誤，請檢查連線。';
+            });
+        }).catch(error => {
+            console.error("Initial Firestore setup error:", error);
+            document.getElementById('loadingIndicator').textContent = '無法建立共享資料。';
+        });
+    }
+
+    // Start the application
+    initFirebase();
+    // Default to the itinerary view now that it's fully populated
+    showTab('itinerary'); 
+</script>
+
+</body>
+</html>
